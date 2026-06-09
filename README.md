@@ -10,6 +10,11 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 ---
 
+- [ ] Phase I: Issue link + problem summary + why you chose this issue
+- [ ] Phase II: understanding the issue + reproduction process + solution approach
+- [ ] Phase III: testing strategy + implementation notes
+- [ ] Phase IV: PR link + summary + maintainer feedback log
+
 ## Why I Chose This Issue
 
 [1-2 paragraphs explaining why this issue interests you, how it matches your skills/learning goals, what you hope to learn]
