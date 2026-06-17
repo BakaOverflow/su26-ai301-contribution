@@ -9,18 +9,16 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 **Issue:** https://github.com/MFlowCode/MFC/issues/1497
 
-**Status:** Phase I
+**Status:** Phase II - Complete
 <!-- **Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete] -->
 ---
 
 - [X] Phase I: Issue link + problem summary + why you chose this issue
-- [ ] Phase II: understanding the issue + reproduction process + solution approach
+- [X] Phase II: understanding the issue + reproduction process + solution approach
 - [ ] Phase III: testing strategy + implementation notes
 - [ ] Phase IV: PR link + summary + maintainer feedback log
 
 ## Why I Chose This Issue
-
-**[1-2 paragraphs explaining why this issue interests you, how it matches your skills/learning goals, what you hope to learn]**
 
 I found the issue interesting because it involves fixing basic mistakes in commented code while giving me the opportunity to dive into the contents of the codebase and determine whether I would like to tackle the more involved issues present. It matches my skill set because the codebase involves handling Python, CMake, and shell code. One of the learning goals I would like to achieve is leveraging AI to jump into programming languages I may not have much experience with, as the largest portion of this codebase is written in Fortran.
 
@@ -33,40 +31,32 @@ What I hope to learn are the basic challenges and expectations that come with co
 
 ### Problem Description
 
-**[In your own words, what's broken or missing?]**
-
-From the issue linked above, the problem involves fixing misleading/incorrect code comments across multiple Fortran Preprocessor files located in the src/ directory.
+From the issue linked above, the problem involves fixing misleading/incorrect code comments across multiple Fortran source files located in the src/ directory.
 
 ### Expected Behavior
 
-**[What should happen?]**
-
-Code comments in the Fortran Preprocessor files located in the src/ directory should correctly state what the code statements/blocks perform, making it possible for programmers going through the code to understand the logic and operations involved.
+Code comments in the Fortran source files located in the src/ directory should correctly state what the code statements/blocks perform, making it possible for programmers going through the code to understand the logic and operations involved.
 
 ### Current Behavior
-
-**[What actually happens?]**
 
 Since these are code comment mistakes, there are no behavior changes that affect the code during runtime/compilation. Instead, the comments reflect incorrect information that doesn't represent what the code does, causing possible errors/misinterpretations.
 
 ### Affected Components
 
-**[Which parts of the codebase are involved?]**
-
 The following files are affected:
 ```
 src/common/m_helper.fpp:524 and :536
 src/simulation/m_collisions.fpp:7-8
-src/simulation/m_data_output.fpp:47
-src/common/m_derived_types.fpp:258-259
-src/simulation/m_riemann_solvers.fpp:1779
+src/simulation/m_data_output.fpp:48
+src/common/m_derived_types.fpp:305-306
+src/simulation/m_riemann_solver_hllc.fpp:140 (issue cited m_riemann_solvers.fpp:1779; file split upstream since)
 src/common/m_precision_select.f90:16
-src/common/m_mpi_common.fpp:41 and :426-427
+src/common/m_mpi_common.fpp:42 and :429-430
 ```
 
 One example is the m_helper file. There is a comment mistake in m_helper.fpp at lines 524 and 536, where we have the following:
 
-```fourtran
+```fortran
 integer, parameter :: int64_kind = selected_int_kind(18)  !< 18 bytes for 64-bit integer
 ```
 
@@ -82,12 +72,7 @@ Forked and cloned MFC. Verification was performed against `master` @ `0c772e60`
 (full SHA `0c772e604e7d997b32720c303f628c18f5e0ea9f`); the issue was filed against
 `40dde5e`, so I re-checked every reference before editing.
 
-**[Notes on setting up your local development environment - challenges you faced, how you solved them]**
-
-If you attempted a build: note OS, compiler/MPI versions, the command you ran
-(`./mfc.sh build`), and any errors + fixes. If you did NOT complete a build:
-state that explicitly — e.g. "This is a comment-only change with no runtime
-behavior; I verified statically against master rather than building." Either is fine.»
+This is a comment-only change with no runtime behavior, so I verified statically against master rather than building MFC locally.
 
 Working branch: https://github.com/BakaOverflow/MFC/tree/fix-issue-1497
 
@@ -131,11 +116,6 @@ Anyone can follow these:
 
 ### Reproduction Evidence
 
-- **Commit showing reproduction:** [Link to commit in your fork]
-- **Screenshots/logs:** [If applicable]
-- **My findings:** [What you discovered during reproduction]
-  
----
 
 - **Commit showing reproduction:** N/A — comment-only; verified statically (steps above)
   rather than via a runtime repro.
@@ -144,11 +124,11 @@ Anyone can follow these:
   because the Riemann module was split. I will edit at the *current* locations and note the
   stale reference in the PR.
 
+---
+
 ## Solution Approach
 
 ### Analysis
-
-**[Your analysis of the root cause - what's causing the issue?]**
 
 Root cause for each is a stale or copy-pasted comment — `selected_int_kind`'s argument
 misread as bytes; docstrings/field comments duplicated from neighboring modules/fields
@@ -158,8 +138,6 @@ involved.
 
 ### Proposed Solution
 
-**[High-level description of your fix approach]**
-
 Edit only the comment text at each location; touch no executable lines and add no
 incidental whitespace/reformatting. The maintainer pre-specified wording for most items,
 so I follow that to minimize review friction:
@@ -167,7 +145,8 @@ so I follow that to minimize review friction:
 1. `m_helper.fpp:524, :536` → `!< kind holding >= 18 decimal digits (64-bit integer)`
 2. `m_collisions.fpp:7-8` → rewrite `@brief` to match the module, e.g.
    `!> @brief Immersed-boundary collision forces: wall-overlap distances and spring/damping
-   normal & tangential forces and torques` «finalize against the actual public procedures»
+   normal & tangential forces and torques` (final `@brief` wording to be set in Phase III
+   against the module's actual public procedures)
 3. `m_data_output.fpp:48` → `!< Rc criterion minimum`
 4. `m_derived_types.fpp:305-306` → `p0 !< Bubble pressure`, `m0 !< Bubble mass`
 5. `m_riemann_solver_hllc.fpp:140` → remove duplicate: `! 6-EQUATION MODEL WITH HLLC star-state flux with contact wave speed s_S`
@@ -177,24 +156,10 @@ so I follow that to minimize review friction:
 
 ### Implementation Plan
 
-Using UMPIRE framework (adapted):
+**Using UMPIRE framework (adapted):**
 
-**Understand:** [Restate the problem]
 
-**Match:** [What similar patterns/solutions exist in the codebase?]
-
-**Plan:** [Step-by-step implementation plan]
-1. [Modify file X to do Y]
-2. [Add function Z]
-3. [Update tests]
-
-**Implement:** [Link to your branch/commits as you work]
-
-**Review:** [Self-review checklist - does it follow the project's contribution guidelines?]
-
-**Evaluate:** [How will you verify it works?]
-
-- **Understand:** Seven independent comment errors across 6 files; comment-only, no behavior change.
+- **Understand:** Seven independent comment errors across 7 files; comment-only, no behavior change.
 - **Match:** Correct neighbors already exist — `R0/V0` (303-304) for item 4; computed
   `single/double_precision` (17-18) for item 6; the accurate `!>` line (429) for item 7b.
 - **Plan:** One branch, one commit per logical group (or one tidy commit), editing only the
