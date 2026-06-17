@@ -9,6 +9,8 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 **Issue:** https://github.com/MFlowCode/MFC/issues/1497
 
+**Branch link:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1497
+
 **Status:** Phase II - Complete
 <!-- **Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete] -->
 ---
