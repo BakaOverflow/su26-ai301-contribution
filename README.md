@@ -11,13 +11,13 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 **Branch link:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1497
 
-**Status:** Phase II - Complete
+**Status:** Phase III - Complete
 <!-- **Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete] -->
 ---
 
 - [X] Phase I: Issue link + problem summary + why you chose this issue
 - [X] Phase II: understanding the issue + reproduction process + solution approach
-- [ ] Phase III: testing strategy + implementation notes
+- [X] Phase III: testing strategy + implementation notes
 - [ ] Phase IV: PR link + summary + maintainer feedback log
 
 ## Why I Chose This Issue
@@ -145,10 +145,8 @@ incidental whitespace/reformatting. The maintainer pre-specified wording for mos
 so I follow that to minimize review friction:
 
 1. `m_helper.fpp:524, :536` → `!< kind holding >= 18 decimal digits (64-bit integer)`
-2. `m_collisions.fpp:7-8` → rewrite `@brief` to match the module, e.g.
-   `!> @brief Immersed-boundary collision forces: wall-overlap distances and spring/damping
-   normal & tangential forces and torques` (final `@brief` wording to be set in Phase III
-   against the module's actual public procedures)
+2. `m_collisions.fpp:7-8` → rewrite `@brief` to match the module:
+   `!> @brief Immersed-boundary collision handling: detects IB-IB and IB-wall contacts and applies soft-sphere collision forces and torques`
 3. `m_data_output.fpp:48` → `!< Rc criterion minimum`
 4. `m_derived_types.fpp:305-306` → `p0 !< Bubble pressure`, `m0 !< Bubble mass`
 5. `m_riemann_solver_hllc.fpp:140` → remove duplicate: `! 6-EQUATION MODEL WITH HLLC star-state flux with contact wave speed s_S`
@@ -164,12 +162,12 @@ so I follow that to minimize review friction:
 - **Understand:** Seven independent comment errors across 7 files; comment-only, no behavior change.
 - **Match:** Correct neighbors already exist — `R0/V0` (303-304) for item 4; computed
   `single/double_precision` (17-18) for item 6; the accurate `!>` line (429) for item 7b.
-- **Plan:** One branch, one commit per logical group (or one tidy commit), editing only the
-  comment lines at the verified current-master locations above.
-- **Implement:** branch `fix-issue-1497` (link in Reproduction Evidence); commits added in Phase III.
-- **Review:** Self-review against `.github/CONTRIBUTING.md`; run `./mfc.sh format`; confirm
-  diff is comment-only with no whitespace noise; PR references `Fixes #1497` and maps each
-  change to the issue's numbered list, noting the item-5 file move.
+- **Plan:** One branch, one tidy commit, editing only the comment lines at the verified
+  current-master locations above.
+- **Implement:** branch `fix-issue-1497`; implemented in commit `72f617ad` (see Code Changes).
+- **Review:** Self-reviewed against `.github/CONTRIBUTING.md`; ran `./mfc.sh format` and
+  `./mfc.sh lint`; confirmed the diff is comment-only with no whitespace noise. PR will
+  reference `Fixes #1497` and map each change to the issue's numbered list, noting the item-5 file move.
 - **Evaluate:** Comments don't alter behavior, so the bar is: formatting + spell-check CI pass,
   the Doxygen docs build succeeds (relevant to the item-2 `@brief`), and the existing test
   suite stays green.
@@ -178,38 +176,52 @@ so I follow that to minimize review friction:
 
 ## Testing Strategy
 
-### Unit Tests
+These changes are comment-only and alter no executable code, so there is no runtime
+behavior to unit- or integration-test and no regression test that could "catch the bug."
+Validation was about confirming the diff is clean and the project's checks still pass.
 
-- [ ] Test case 1: [Description]
-- [ ] Test case 2: [Description]
-- [ ] Test case 3: [Description]
+### Validation performed
+- `git diff` confirmed every change touches only comment text — no executable lines and
+  no whitespace/reformatting noise (7 files, 10 insertions / 11 deletions, all comments).
+- `./mfc.sh format` — 275 files left unchanged (no reformatting needed).
+- `./mfc.sh lint` — ruff checks on toolchain/examples/benchmarks passed; 349 toolchain unit tests passed.
+- Pre-commit precheck (same checks as the CI lint-gate) passed all 7 gates: formatting,
+  spell check, toolchain lint, source lint, doc references, parameter docs, and example-case validation.
+- Re-read each edited comment against the surrounding code to confirm it now matches behavior
+  (e.g. `Rc_min` is assigned via `minval`; `p0`/`m0` are the bubble pressure/mass fields).
 
-### Integration Tests
-
-- [ ] Integration scenario 1
-- [ ] Integration scenario 2
-
-### Manual Testing
-
-[What you tested manually and results]
+### Remaining CI at PR time
+- The full simulation/build test suite runs on the PR; no behavior changed, so it should stay green.
+- Doxygen docs build covers the rewritten `m_collisions` `@brief`.
 
 ---
 
 ## Implementation Notes
 
-### Week [X] Progress
+### Week 3 Progress
+**What I did:** Applied all seven comment fixes on `fix-issue-1497` at the current-master
+locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edit changes only comment text:
+- `m_helper.fpp` (524 & 536): "18 bytes" → "kind holding >= 18 decimal digits (64-bit integer)"
+- `m_collisions.fpp` (7-8): replaced the copy-pasted IBM `@brief` with one describing the module's actual collision-force handling
+- `m_data_output.fpp` (48): "Rc criterion maximum" → "minimum"
+- `m_derived_types.fpp` (305-306): `p0`/`m0` "Bubble size/velocity" → "Bubble pressure/mass"
+- `m_riemann_solver_hllc.fpp` (140): removed duplicate "HLLC"
+- `m_precision_select.f90` (16): clarified `half_precision` is a hardcoded kind
+- `m_mpi_common.fpp` (42): fixed dangling "and."; (429-430): removed the duplicate maxloc summary line
 
-[What you built this week, challenges faced, decisions made]
+**Decisions:**
+- One atomic commit for all seven (single issue, comment-only) to avoid flooding CI, per MFC's contributing guide.
+- Followed the maintainer's pre-specified wording where given; authored the `m_collisions` `@brief` myself against the module's contained procedures (collision detection + soft-sphere force/torque application).
+- Anchored the `p0`/`m0` edits on the variable names so the correct `R0`/`V0` "size/velocity" comments directly above were left untouched.
 
-### Week [Y] Progress
-
-[Continue documenting as you work]
+**Challenges:**
+- The subtlest item was `selected_int_kind(18)` — its argument is a decimal-digit count, not a byte count, so the original "18 bytes" conflated the two (the 8-byte 64-bit kind holds ~18 digits).
+- On my first commit I forgot to save `m_helper.fpp`, so it landed as a 6-file commit; caught it by comparing the diff's file count against the issue's seven items, then amended the commit to include it (now 7 files).
 
 ### Code Changes
-
-- **Files modified:** [List]
-- **Key commits:** [Links to important commits]
-- **Approach decisions:** [Why you chose certain approaches]
+- **Files modified:** `m_helper.fpp`, `m_collisions.fpp`, `m_data_output.fpp`, `m_derived_types.fpp`, `m_riemann_solver_hllc.fpp`, `m_precision_select.f90`, `m_mpi_common.fpp`
+- **Key commit:** https://github.com/BakaOverflow/MFC/commit/72f617ad5ea644f50aeb8af80e9f452e45c6a4e8
+- **Approach decisions:** comment-only diff, no executable or whitespace changes; verified via `git diff` and the pre-commit precheck.
 
 ---
 
