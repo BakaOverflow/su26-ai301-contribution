@@ -231,7 +231,7 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 **PR Description:** Fixes all seven misleading/incorrect code comments from #1497 across seven `src/` files (comment-only, no behavior change), including the item that moved to `m_riemann_solver_hllc.fpp` after the Riemann module was split upstream.
 
 **Maintainer Feedback:**
-- [today's date]: PR opened; requested review (`@claude full review`, tagged @sbryngelson). Awaiting review.
+- [2026-06-24]: PR opened; requested review (`@claude full review`, tagged @sbryngelson). Awaiting review.
 
 **Status:** Awaiting review
 
