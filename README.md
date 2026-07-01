@@ -11,14 +11,14 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 **Branch link:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1497
 
-**Status:** Phase III - Complete
+**Status:** Phase IV - Complete
 <!-- **Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete] -->
 ---
 
 - [X] Phase I: Issue link + problem summary + why you chose this issue
 - [X] Phase II: understanding the issue + reproduction process + solution approach
 - [X] Phase III: testing strategy + implementation notes
-- [ ] Phase IV: PR link + summary + maintainer feedback log
+- [X] Phase IV: PR link + summary + maintainer feedback log
 
 ## Why I Chose This Issue
 
@@ -224,39 +224,42 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 - **Approach decisions:** comment-only diff, no executable or whitespace changes; verified via `git diff` and the pre-commit precheck.
 
 ---
-
 ## Pull Request
 
-**PR Link:** [GitHub PR URL when submitted]
+**PR Link:** https://github.com/MFlowCode/MFC/pull/1624
 
-**PR Description:** [Draft or final PR description - much of the content above can be adapted]
+**PR Description:** Fixes all seven misleading/incorrect code comments from #1497 across seven `src/` files (comment-only, no behavior change), including the item that moved to `m_riemann_solver_hllc.fpp` after the Riemann module was split upstream.
 
 **Maintainer Feedback:**
-- [Date]: [Summary of feedback received]
-- [Date]: [How you addressed it]
+- [today's date]: PR opened; requested review (`@claude full review`, tagged @sbryngelson). Awaiting review.
 
-**Status:** [Awaiting review / Iterating / Approved / Merged]
+**Status:** Awaiting review
 
 ---
 
 ## Learnings & Reflections
 
 ### Technical Skills Gained
-
-[What you learned technically]
+- The open-source contribution loop end to end: fork → branch → verify against upstream → commit → PR → review, using MFC's actual conventions (single atomic commit, `Closes #`, their PR template and `@claude` review bot).
+- Reading an unfamiliar Fortran/CFD codebase well enough to confirm intent from surrounding code (e.g. that `Rc_min` is a minimum because it's assigned via `minval` and compared with `<`), despite no prior Fortran experience.
+- A concrete Fortran detail: `selected_int_kind(n)` takes a count of decimal digits, not bytes — the bug at the heart of the `m_helper` fix.
+- Git hygiene under review: syncing a fork, rebasing onto moving upstream, `--force-with-lease`, and keeping a diff scoped to comment-only lines.
+- Running a project's local quality gates before pushing (`./mfc.sh format` / `lint`, the pre-commit precheck mirroring CI).
 
 ### Challenges Overcome
-
-[What was hard and how you solved it]
+- The issue's file/line references were stale — filed against an older commit. Verifying against current `master` surfaced that three line numbers had drifted and item 5's whole file had been split (`m_riemann_solvers.fpp` → `m_riemann_solver_hllc.fpp`). Re-verified all seven and noted the move in the PR.
+- Caught an incomplete commit by cross-checking the diff's file count (6) against the issue's item count (7) — I'd forgotten to save `m_helper.fpp`. Amended it in rather than shipping a partial fix.
+- Separating "saved / committed / pushed" — more than once a change was on disk but not on the remote; learned to confirm with `git diff`/`git status` before assuming it landed.
 
 ### What I'd Do Differently Next Time
-
-[Reflection on your process]
+- Verify issue line references against current `master` up front, before planning, since the repo drifts.
+- Treat "save → stage → commit → push" as one checklist and confirm the remote each time, rather than assuming an edit propagated.
+- Sanity-check a commit's file count against the scope of the issue before pushing.
 
 ---
 
 ## Resources Used
-
-- [Link to helpful documentation]
-- [Tutorial or Stack Overflow post that helped]
-- [GitHub issues or discussions that helped]
+- MFC contributing guide: https://mflowcode.github.io/documentation/contributing.html
+- Issue #1497 (maintainer's pre-specified wording for most fixes): https://github.com/MFlowCode/MFC/issues/1497
+- fortran-lang.org/learn (modern Fortran reference)
+- Fortran `selected_int_kind` / `selected_real_kind` semantics (kind selection by digits/range)
