@@ -11,7 +11,7 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 
 **Branch link:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1497
 
-**Status:** Phase IV - Complete
+**Status:** Phase IV - Complete - (PR 1624 closed unmerged)
 <!-- **Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete] -->
 ---
 
@@ -19,6 +19,8 @@ Codepath AI301 Capstone for summer 26 open source project contributions
 - [X] Phase II: understanding the issue + reproduction process + solution approach
 - [X] Phase III: testing strategy + implementation notes
 - [X] Phase IV: PR link + summary + maintainer feedback log
+
+**PR Link** [#1624](https://github.com/MFlowCode/MFC/pull/1624) **closed unmerged**
 
 ## Why I Chose This Issue
 
@@ -233,7 +235,9 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 **Maintainer Feedback:**
 - [2026-06-24]: PR opened; requested review (`@claude full review`, tagged @sbryngelson). Awaiting review.
 
-**Status:** Awaiting review
+- [2026-07-07]: PR marked as draft, then closed unmerged by the maintainer with no comment. Issue #1497 remains open (the `Closes #1497` keyword only fires on merge).
+
+**Status:** Closed (unmerged) Maintainer closed the PR without leaving a comment.
 
 ---
 
@@ -263,3 +267,71 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 - Issue #1497 (maintainer's pre-specified wording for most fixes): https://github.com/MFlowCode/MFC/issues/1497
 - fortran-lang.org/learn (modern Fortran reference)
 - Fortran `selected_int_kind` / `selected_real_kind` semantics (kind selection by digits/range)
+
+---
+
+# Contribution [#1485]: [Extend lint_source.py to catch stop/error stop, integer(wp), and signed d-exponent literals]
+
+**Contribution Number:** 2
+**Student:** George A
+
+**Issue:** https://github.com/MFlowCode/MFC/issues/1485
+
+**Status:** Phase I - In Progress
+
+- [X] Phase I: Issue link + problem summary + why you chose this issue
+- [ ] Phase II: understanding the issue + reproduction process + solution approach
+- [ ] Phase III: testing strategy + implementation notes
+- [ ] Phase IV: PR link + summary + maintainer feedback log
+
+## Why I Chose This Issue
+
+After my first contribution (#1497) was a comment-only documentation fix, I wanted a second issue that (a) builds on the MFC environment I already have set up and (b) is a step up in substance while still matching my strengths. #1485 is pure-Python work on `toolchain/mfc/lint_source.py`, MFC's CI source linter — squarely in my wheelhouse — and unlike my first issue it involves real logic and tests, not just comment text. It's also a CI/tooling contribution, which broadens my portfolio beyond documentation.
+
+I hope to learn how a project encodes its own conventions as automated checks, get practice writing regex-based static analysis and its unit tests, and run a change through the same lint-gate my first PR passed through — this time contributing to that gate rather than just satisfying it.
+
+## Understanding the Issue
+
+### Problem Description
+
+`toolchain/mfc/lint_source.py` flags convention violations in `src/` Fortran, but three conventions are currently enforced only by human review, so violations slip in. The issue asks to close three gaps, scoped to these only:
+1. Add `check_stop_statements` to flag `stop`/`error stop` on code lines (exempting comments and Fypp `#:` lines), allowlisting `syscheck/` and the `#ifndef MFC_MPI` fallback in `m_mpi_common.fpp`.
+2. Add an `integer(wp)` check — `wp` is a real kind, so `integer(wp)` should be plain `integer`.
+3. Broaden `check_double_precision`'s `d`-literal regex from `[0-9]d0` to `[0-9]\.?[0-9]*[dD][-+]?[0-9]+` so signed/multi-digit exponents (e.g. `5.0d-11`) are caught.
+
+### Affected Components
+
+- `toolchain/mfc/lint_source.py` — the linter to extend (verified against current `master`: `check_double_precision` at ~line 182 still ends its regex with `[0-9]d0`; `check_false_integers` at ~239 handles `2_wp` but not `integer(wp)`; checks are registered in `main()` via `all_errors.extend(...)`).
+- `toolchain/mfc/test_lint_source.py` — where new tests go.
+
+### Status note
+Verified issue references against current `master` (issue was filed at stale `40dde5e`). Confirmed unclaimed (no assignee, no comments, no referencing PR) before claiming. Posted a claim comment stating the plan and asking one scope question: checks-only
+
+## Reproduction Process
+[Phase II]
+
+## Solution Approach
+[Phase II]
+
+## Testing Strategy
+[Phase III]
+
+## Implementation Notes
+[Phase III]
+
+## Pull Request
+[Phase IV]
+
+## Learnings & Reflections
+[end]
+
+## Resources Used
+- Issue #1485: https://github.com/MFlowCode/MFC/issues/1485
+- `toolchain/mfc/lint_source.py`, `toolchain/mfc/test_lint_source.py`
+
+
+
+
+
+
+
