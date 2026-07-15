@@ -272,15 +272,17 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 
 # Contribution [#1485]: [Extend lint_source.py to catch stop/error stop, integer(wp), and signed d-exponent literals]
 
-**Contribution Number:** 2
+**Contribution Number:** 2  
 **Student:** George A
 
 **Issue:** https://github.com/MFlowCode/MFC/issues/1485
 
-**Status:** Phase I - In Progress
+**Branch link:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1485
+
+**Status:** Phase II - Complete
 
 - [X] Phase I: Issue link + problem summary + why you chose this issue
-- [ ] Phase II: understanding the issue + reproduction process + solution approach
+- [X] Phase II: understanding the issue + reproduction process + solution approach
 - [ ] Phase III: testing strategy + implementation notes
 - [ ] Phase IV: PR link + summary + maintainer feedback log
 
@@ -290,47 +292,164 @@ After my first contribution (#1497) was a comment-only documentation fix, I want
 
 I hope to learn how a project encodes its own conventions as automated checks, get practice writing regex-based static analysis and its unit tests, and run a change through the same lint-gate my first PR passed through — this time contributing to that gate rather than just satisfying it.
 
+---
+
 ## Understanding the Issue
 
 ### Problem Description
 
-`toolchain/mfc/lint_source.py` flags convention violations in `src/` Fortran, but three conventions are currently enforced only by human review, so violations slip in. The issue asks to close three gaps, scoped to these only:
-1. Add `check_stop_statements` to flag `stop`/`error stop` on code lines (exempting comments and Fypp `#:` lines), allowlisting `syscheck/` and the `#ifndef MFC_MPI` fallback in `m_mpi_common.fpp`.
-2. Add an `integer(wp)` check — `wp` is a real kind, so `integer(wp)` should be plain `integer`.
-3. Broaden `check_double_precision`'s `d`-literal regex from `[0-9]d0` to `[0-9]\.?[0-9]*[dD][-+]?[0-9]+` so signed/multi-digit exponents (e.g. `5.0d-11`) are caught.
+`toolchain/mfc/lint_source.py` is MFC's CI source linter: it scans `src/` Fortran (`.fpp` / `.f90`) line by line and flags text patterns that violate project conventions, failing the CI lint gate when it finds them. Three of MFC's conventions are currently enforced only by human code review, so violations keep slipping into the codebase. The issue asks to close those three gaps so the rules become CI-gated, scoped to these only:
+
+1. **No `stop` / `error stop` check.** MFC wants `s_mpi_abort` instead (so all MPI ranks shut down cleanly); nothing currently flags a bare `stop`. Proposed `check_stop_statements`, exempting comments and Fypp `#:` lines, and allowlisting `syscheck/` plus the `#ifndef MFC_MPI` fallback in `m_mpi_common.fpp`.
+2. **No `integer(wp)` check.** `wp` is a *real* (floating-point) kind, so `integer(wp)` is a copy-paste mistake that should be plain `integer`.
+3. **The `d`-literal regex is too narrow.** `check_double_precision` matches only `[0-9]d0`, so signed/multi-digit double-precision exponents (`5.0d-11`, `2.5d+3`, `1.0d12`) are missed.
+
+### Expected Behavior
+
+Running `./mfc.sh lint` (or the pre-commit precheck / CI lint gate) should report an error for each of these convention violations present in `src/`, with a file:line reference and a suggested fix — the same way existing checks like `check_false_integers` and `check_raw_directives` already do.
+
+### Current Behavior
+
+The linter passes cleanly even though real violations exist in `src/` today. The rules are effectively unenforced: a contributor can add a `stop`, an `integer(wp)`, or a `5.0d-11` literal and CI will not object.
 
 ### Affected Components
 
-- `toolchain/mfc/lint_source.py` — the linter to extend (verified against current `master`: `check_double_precision` at ~line 182 still ends its regex with `[0-9]d0`; `check_false_integers` at ~239 handles `2_wp` but not `integer(wp)`; checks are registered in `main()` via `all_errors.extend(...)`).
-- `toolchain/mfc/test_lint_source.py` — where new tests go.
+```
+toolchain/mfc/lint_source.py        # the linter to extend
+toolchain/mfc/test_lint_source.py   # where the new tests go
+```
 
-### Status note
-Verified issue references against current `master` (issue was filed at stale `40dde5e`). Confirmed unclaimed (no assignee, no comments, no referencing PR) before claiming. Posted a claim comment stating the plan and asking one scope question: checks-only
+Structure of the linter (verified against current `master`, not the issue's stale `40dde5e` base):
+- `check_double_precision` (~line 182) — its regex still ends with the narrow `[0-9]d0` alternative (item 3 edits this).
+- `check_false_integers` (~line 239) — flags bare `2_wp`; it does **not** cover `integer(wp)`, so item 2 is a genuine gap. This function is also the closest structural template for the new checks.
+- `main()` (~lines 440–462) — aggregates every check via `all_errors.extend(check_...(repo_root))`. New checks must be registered here or CI will never run them.
+
+---
 
 ## Reproduction Process
-[Phase II]
+
+### Environment Setup
+
+No new setup was needed: the MFC clone, Python venv, and toolchain from Contribution #1 were reused, and `./mfc.sh lint` / `./mfc.sh precheck` already run cleanly on this machine. Verified against `master` @ `db240d6` (the issue was filed against `40dde5e`, so — as with #1497 — I re-checked every reference before planning; line numbers had drifted again).
+
+Working branch: https://github.com/BakaOverflow/MFC/tree/fix-issue-1485
+
+### Steps to Reproduce
+
+The bug here is a *silent gap*: the linter reports success while violations sit in the code. Each gap reproduces the same way — run the linter, then show the violation it failed to flag.
+
+1. `git clone https://github.com/MFlowCode/MFC.git && cd MFC`
+2. `git checkout db240d6` (or current `master`)
+3. Run the source linter: `./mfc.sh lint`
+   - **Observed:** passes — "Source lint passed", no errors reported.
+4. **Gap 3 (d-literals):** `grep -n "5.0d-11" src/simulation/m_bubbles_EL.fpp`
+   - Shows line 1346: `if ((1._wp - q_beta(1)%sf(i, j, k)) > 5.0d-11) then`
+   - **Expected:** flagged as a double-precision literal. **Actual:** not flagged, because `check_double_precision`'s regex is `[0-9]d0`, which only matches a `d0` exponent — the signed `d-11` exponent slips through.
+   - (Issue cited line 1345; it is 1346 on current master.)
+5. **Gap 2 (`integer(wp)`):** `grep -rnE "\binteger\s*\(\s*wp\s*\)" src/`
+   - Shows `src/simulation/m_bubbles_EE.fpp:73`: `integer(wp) :: i, j, k, l`
+   - **Expected:** flagged, suggesting plain `integer`. **Actual:** not flagged — no such check exists.
+6. **Gap 1 (`stop` / `error stop`):** `grep -rnE "^\s*(error\s+)?stop\b" src/ --include=*.fpp --include=*.f90`
+   - Shows 7 matches. **Expected:** the non-allowlisted ones flagged, suggesting `s_mpi_abort`. **Actual:** not flagged — no such check exists.
+7. Repeat steps 3–6: results are consistent, not a fluke.
+
+### Reproduction Evidence
+
+- **Branch:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1485
+- **Commit showing reproduction:** N/A — the reproduction is running the existing linter against unmodified `master`; no code change is needed to observe the gap.
+- **My findings:** All three gaps confirmed on current `master`. I inventoried every violation the new checks will surface, since that directly determines this PR's scope:
+
+| Gap | Real violations found | Locations |
+|-----|----------------------|-----------|
+| 3 — d-literal | 1 | `src/simulation/m_bubbles_EL.fpp:1346` (`5.0d-11`) |
+| 2 — `integer(wp)` | 1 | `src/simulation/m_bubbles_EE.fpp:73` |
+| 1 — `stop` | 3 (of 7 matches) | `src/pre_process/m_global_parameters.fpp:478`, `src/common/m_helper.fpp:105`, `src/post_process/m_global_parameters.fpp:409` |
+
+The other 4 `stop` matches are the ones the issue explicitly allowlists: 2 in `src/syscheck/` and 2 in `src/common/m_mpi_common.fpp` (463, 465) — the non-MPI fallback path, where a plain `stop` is legitimate because `s_mpi_abort` is unavailable.
+
+- **Important finding — the proposed regex produces false positives.** The issue's suggested pattern `[0-9]\.?[0-9]*[dD][-+]?[0-9]+` matches digit-`d`-digit sequences *inside identifiers*, not just literals. On current `master` it matches 4 lines, and 3 are false positives:
+
+  ```
+  src/post_process/m_start_up.fpp:49   :: cart2d12_coords, cart2d13_coords   <- "2d12" inside an identifier
+  src/post_process/m_start_up.fpp:845  call MPI_CART_COORDS(..., cart2d12_coords, ierr)
+  src/post_process/m_start_up.fpp:849  call MPI_CART_COORDS(..., cart2d13_coords, ierr)
+  src/simulation/m_bubbles_EL.fpp:1346 ... > 5.0d-11) then                   <- the only real violation
+  ```
+
+  Shipped as specified, the check would flag three variable names as double-precision literals. The fix is to require the match not be part of an identifier — e.g. `(?<![A-Za-z0-9_])[0-9]\.?[0-9]*[dD][-+]?[0-9]+(?![A-Za-z0-9_])`. I will raise this in the PR rather than implementing the pattern as-written.
+
+---
 
 ## Solution Approach
-[Phase II]
+
+### Analysis
+
+Root cause of each gap is simply an absent or under-specified rule in `lint_source.py`, not a defect in the Fortran:
+
+- **Gaps 1 and 2** have no check function at all, so the conventions rely entirely on a reviewer noticing them.
+- **Gap 3** has a check, but its regex (`[0-9]d0`) encodes only the narrowest form of the pattern it means to catch. Any exponent other than a literal `d0` — signed, or more than one digit — is invisible to it.
+
+Secondary finding (above): the replacement regex proposed in the issue is too *broad* in the other direction, matching identifiers like `cart2d12_coords`. So the real task for item 3 is to widen the exponent handling **and** constrain the match to standalone literals.
+
+### Proposed Solution
+
+All work is confined to two Python files; no Fortran is modified (see scope note).
+
+1. **`check_stop_statements`** (new) — walk `src/` `.fpp`/`.f90`, skip blank/comment lines and Fypp `#:` directives (so `#:stop` is exempt), match a `stop` / `error stop` statement on the code portion only, and allowlist `src/syscheck/` plus the non-MPI fallback in `m_mpi_common.fpp`. Message suggests `s_mpi_abort`.
+2. **`integer(wp)` check** (new) — regex `\binteger\s*\(\s*wp\s*\)`; message suggests plain `integer`.
+3. **Broaden `check_double_precision`** — replace the `[0-9]d0` alternative with an identifier-safe version of the issue's pattern (see finding above), case-insensitive, on the code portion only.
+4. Register the new checks in `main()` alongside the existing `all_errors.extend(...)` calls.
+
+**Scope note:** per the issue's own framing ("Closing the linter gaps makes them CI-gated… This pairs with the `stop`→`s_mpi_abort` and forbidden-literal cleanup issues"), I read this as **checks-only**, with the existing violations owned by #1483 (`stop`→`s_mpi_abort`) and #1484 (forbidden literals). The practical tension is that a check which fires on unfixed code turns this PR's own CI red, so I will raise it in the PR with the inventory above and let the maintainer choose: land the checks alongside #1483/#1484, or include the two one-line fixes (`m_bubbles_EE.fpp:73`, `m_bubbles_EL.fpp:1346`) here. I posted a claim comment on the issue on 2026-07-05; no maintainer reply as of this writing, so I am proceeding on the issue text rather than waiting.
+
+### Implementation Plan
+
+Using UMPIRE framework (adapted):
+
+- **Understand:** Three convention rules are unenforced because `lint_source.py` either lacks a check or uses too narrow a regex. The linter should flag them at file:line with a suggested fix; today it passes silently while 5 real violations exist.
+- **Match:** The codebase already contains the patterns I need. `check_false_integers` (~239) is a near-exact structural template for both new checks: compile a regex, walk the source files, skip comments, match the code portion, append `f"  {rel}:{i+1} <message>. Fix: <suggestion>"`. `check_double_precision` (~182) both hosts item 3 and demonstrates directory exclusion for the `syscheck/` allowlist. `main()` shows how checks are registered.
+- **Plan:**
+  1. Broaden the `d`-literal regex in `check_double_precision` (identifier-safe), and add a test proving `5.0d-11` is flagged and `cart2d12_coords` is not.
+  2. Add the `integer(wp)` check modeled on `check_false_integers`; register in `main()`.
+  3. Add `check_stop_statements` with the comment/`#:` skip and the `syscheck/` + `m_mpi_common.fpp` allowlist; register in `main()`.
+  4. Run `./mfc.sh lint` to confirm the checks fire on exactly the inventoried violations and nothing else.
+- **Implement:** branch `fix-issue-1485` (link above); commits to follow in Phase III.
+- **Review:** Self-review against `.github/CONTRIBUTING.md`; run `./mfc.sh format` and the pre-commit precheck (the same seven gates as the CI lint gate) before pushing; keep the diff limited to the two toolchain files; PR will reference `Closes #1485` and document the false-positive finding.
+- **Evaluate:** Unlike Contribution #1, this change has real testable behavior. For each of the three rules I will add a should-flag and a should-stay-clean case to `test_lint_source.py`, following the existing `..._is_flagged` / `..._is_clean` pattern (which uses `tmp_path` to write a small fake source file and assert on the returned errors). Success = new tests pass, the 349 existing toolchain tests stay green, and `./mfc.sh lint` reports exactly the inventoried violations with no false positives.
+
+---
 
 ## Testing Strategy
+
 [Phase III]
+
+---
 
 ## Implementation Notes
+
 [Phase III]
 
+---
+
 ## Pull Request
+
 [Phase IV]
 
+---
+
 ## Learnings & Reflections
-[end]
+
+[To be completed]
+
+---
 
 ## Resources Used
+
 - Issue #1485: https://github.com/MFlowCode/MFC/issues/1485
-- `toolchain/mfc/lint_source.py`, `toolchain/mfc/test_lint_source.py`
-
-
-
+- `toolchain/mfc/lint_source.py` (`check_double_precision`, `check_false_integers`, `main`) — structural templates
+- `toolchain/mfc/test_lint_source.py` — existing test patterns to model new tests on
+- MFC contributing guide: https://mflowcode.github.io/documentation/contributing.html
+- Python `re` docs (lookbehind/lookahead for identifier-safe matching): https://docs.python.org/3/library/re.html
 
 
 
