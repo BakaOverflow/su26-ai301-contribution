@@ -283,7 +283,7 @@ locations verified in Phase II, in a single atomic commit (`72f617ad`). Each edi
 
 - [X] Phase I: Issue link + problem summary + why you chose this issue
 - [X] Phase II: understanding the issue + reproduction process + solution approach
-- [ ] Phase III: testing strategy + implementation notes
+- [X] Phase III: testing strategy + implementation notes
 - [ ] Phase IV: PR link + summary + maintainer feedback log
 
 ## Why I Chose This Issue
@@ -419,17 +419,112 @@ Using UMPIRE framework (adapted):
 
 ---
 
-## Testing Strategy
-
-[Phase III]
-
----
 
 ## Implementation Notes
 
-[Phase III]
+### Week (Phase III) Progress — verified against `master @ db240d6`
+
+Implemented all three linter checks in `toolchain/mfc/lint_source.py`, plus the source fixes
+for the violations they surface:
+
+- **d-literal (edit to `check_double_precision`):** replaced the narrow `[0-9]d0` alternative
+  with an identifier-bounded pattern
+  `(?<![A-Za-z0-9_])[0-9]\.?[0-9]*[dD][-+]?[0-9]+(?![A-Za-z0-9_])`. The lookbehind/lookahead
+  are the point: the issue's bare pattern false-positives on names like `cart2d12_coords` /
+  `cart2d13_coords` in `src/post_process/m_start_up.fpp`; the bounded version matches only the
+  real literal (`5.0d-11`).
+- **`check_integer_wp` (new):** regex `\binteger\s*\(\s*wp\s*\)` (case-insensitive), modeled on
+  the neighboring `check_false_integers`; skips comments/blank/Fypp lines and trailing `!` comments.
+- **`check_stop_statements` (new):** regex `(?<![A-Za-z0-9_%])(?:error\s+stop|stop)\b`
+  (case-insensitive). Negative lookbehind + `\b` reject identifiers like `backstop` /
+  `stopping_time`; `#:stop` Fypp directives are skipped by the existing comment filter. Allowlist:
+  `STOP_EXCLUDE_DIRS = {"syscheck"}` and `STOP_EXCLUDE_FILES = {"m_mpi_common.fpp"}` (the non-MPI
+  fallback that *is* `s_mpi_abort` and cannot delegate to itself).
+- Both new functions registered in `main()` alongside the existing checks.
+
+Source fixes for the five real violations (verified on current `master`, no false positives):
+
+- `src/simulation/m_bubbles_EE.fpp:73` — `integer(wp)` → `integer`.
+- `src/simulation/m_bubbles_EL.fpp:1346` — `5.0d-11` → `5.0e-11_wp` (the working-precision form).
+
+### Key decision (OPEN — to confirm with the maintainer)
+
+The three remaining `stop`s (`pre_process`/`post_process/m_global_parameters.fpp`,
+`m_helper.fpp:105`) could not be converted to `s_mpi_abort` directly: `s_mpi_abort` lives in
+`m_mpi_common`, which already `use`s both `m_helper` and `m_global_parameters`, so adding
+`use m_mpi_common` to those files creates a module cycle. (This is why the `stop`→`s_mpi_abort`
+cleanup is its own issue, #1483.)
+
+Instead of the brief's fallback (hold the check for #1483), the implementation took a third path:
+the inline `nb < 1` `stop` branches were found to be redundant with a `case_validator.py` check,
+so the guard was **relocated into `s_check_inputs_common` in `src/common/m_checker_common.fpp`**
+using `@:PROHIBIT(... nb < 1 ...)`, and the three inline `stop` branches were deleted.
+
+> **This is a scope expansion beyond a linter-only change and needs the maintainer's sign-off — I
+> am raising it in the PR as a proposal, not shipping it as settled. Before opening the PR I will
+> either confirm this relocation with `@sbryngelson` or narrow the PR to the linter checks + the
+> two trivial fixes and pair the `stop` check with #1483.** (Documenting here so the decision is
+> tracked; see Phase IV.)
+
+### Challenges faced
+
+- The main non-mechanical work was the two regex boundary problems (identifier-safe d-literal;
+  `stop` not matching `backstop`/`stopping_time`) and discovering the `m_mpi_common` module cycle
+  that blocks the naive `stop` fix.
+
+### Code Changes
+
+- **Files modified (net +140 / −13, 8 files):** `toolchain/mfc/lint_source.py`,
+  `toolchain/mfc/test_lint_source.py`, `src/simulation/m_bubbles_EE.fpp`,
+  `src/simulation/m_bubbles_EL.fpp`, `src/common/m_checker_common.fpp`, `src/common/m_helper.fpp`,
+  `src/pre_process/m_global_parameters.fpp`, `src/post_process/m_global_parameters.fpp`.
+- **Commits on `fix-issue-1485`** (fixes-first so each commit is independently green):
+  - `6088089b` — fix: remove integer(wp)/d-literal/stop convention violations in src (6 Fortran files)
+  - `d914ce1a` — toolchain: extend lint_source.py for stop, integer(wp), signed d-literals (2 files)
+- **Branch:** https://github.com/BakaOverflow/MFC/tree/fix-issue-1485
+  *(NOTE: commits are local and not yet pushed — push before relying on these links / marking done.)*
 
 ---
+
+## Testing Strategy
+
+Unlike Contribution #1 (comment-only), this change has real testable behavior, so it includes new
+unit tests plus full local verification.
+
+### Unit tests — `toolchain/mfc/test_lint_source.py`
+
+Added a `_write_src(tmp_path, rel, body)` helper and 6 tests, each pairing a should-flag case with
+its should-stay-clean / false-positive trap:
+
+- `test_double_precision_flags_signed_d_exponent` — `5.0d-11` is flagged.
+- `test_double_precision_clean_cases` — `cart2d12_coords`, `cart2d13_coords`, and the correct
+  `5.0e-11_wp` are clean.
+- `test_integer_wp_flagged` — `integer(wp)` is flagged.
+- `test_integer_wp_clean` — plain `integer` and `real(wp)` are clean.
+- `test_stop_statements_flagged` — `stop '...'` and `error stop 1` are flagged.
+- `test_stop_statements_clean_and_allowlisted` — `#:stop`, `backstop`/`stopping_time`,
+  `syscheck/`, and `m_mpi_common.fpp` are clean.
+
+### Verification performed
+
+- **`./mfc.sh precheck -j 8`** → all 7 gates pass (formatting, spell, toolchain lint, source lint,
+  doc refs, param docs, example-case validation).
+- **`python3 -m pytest toolchain/`** → **356 passed** (includes the 6 new tests).
+- **`python3 toolchain/mfc/lint_source.py`** on the real tree → clean, exit 0 (fires on exactly the
+  inventoried violations once fixed; no false positives).
+- **`./mfc.sh format -j 8`** → applied (aligned the `integer` declaration in `m_bubbles_EE.fpp`;
+  the long regex was split across lines).
+- **Fortran build + regression (gfortran 13.3.0, CPU):** `./mfc.sh build -j 8` → exit 0, all four
+  targets (`syscheck`, `pre_process`, `simulation`, `post_process`) compiled clean —
+  confirming the `@:PROHIBIT` relocation and dead-branch deletions are valid across all three
+  executables. `./mfc.sh test --only Bubbles` → **64 passed, 0 failed** (572 skipped by the filter);
+  golden files unchanged → edits are behavior-preserving.
+
+### Remaining verification (Phase IV, via PR CI)
+
+Only gfortran-CPU was built locally. Portability of the `@:PROHIBIT` line and the literal/kind edits
+across the other compilers (nvfortran, Cray, Intel ifx) and AMD flang GPU is left to the PR's CI matrix.
+
 
 ## Pull Request
 
